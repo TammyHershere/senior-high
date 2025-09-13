@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ward 單字配對遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 5px 15px -5px rgba(0, 0, 0, 0.04);
+            padding: 2rem;
+            text-align: center;
+            max-width: 90%;
+            width: 500px;
+        }
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .card {
+            background-color: #3b82f6;
+            border-radius: 0.75rem;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            transform-style: preserve-3d;
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 0.5rem;
+        }
+        .card-front {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .card-back {
+            background-color: #ffffff;
+            color: #1f2937;
+            transform: rotateY(180deg);
+        }
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card.matched .card-back {
+            background-color: #10b981;
+            color: white;
+        }
+        .card.matched {
+            pointer-events: none;
+        }
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            font-size: 1.5rem;
+            display: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="container">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Ward 單字配對</h1>
+        <p class="text-gray-600 mb-6">點擊卡片來翻轉並找到對應的配對！</p>
+        <div class="game-grid" id="game-grid"></div>
+        
+        <div class="flex justify-center items-center mt-6 space-x-4">
+            <button id="save-button" class="px-6 py-3 bg-green-600 text-white font-bold rounded-full shadow-lg hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                保存遊戲
+            </button>
+            <button id="load-button" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition duration-300 transform hover:scale-105">
+                載入遊戲
+            </button>
+            <button id="reset-button" class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                重新開始
+            </button>
+        </div>
+    </div>
+
+    <div id="message-box" class="flex flex-col items-center justify-center">
+        <span id="message-text"></span>
+        <button id="close-message" class="mt-4 px-4 py-2 bg-white text-gray-800 font-bold rounded-full">關閉</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const words = [
+                { id: 1, word: 'forward', meaning: '向前的' },
+                { id: 2, word: 'backward', meaning: '向後的' },
+                { id: 3, word: 'award', meaning: '獎勵' },
+                { id: 4, word: 'reward', meaning: '回報' },
+                { id: 5, word: 'upward', meaning: '向上的' },
+                { id: 6, word: 'downward', meaning: '向下的' },
+                { id: 7, word: 'toward', meaning: '朝向' },
+                { id: 8, word: 'wardrobe', meaning: '衣櫃' }
+            ];
+
+            let cards = [];
+            let flippedCards = [];
+            let matchedPairs = 0;
+            const gameGrid = document.getElementById('game-grid');
+            const resetButton = document.getElementById('reset-button');
+            const saveButton = document.getElementById('save-button');
+            const loadButton = document.getElementById('load-button');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+            const closeMessageButton = document.getElementById('close-message');
+
+            function showMessage(text) {
+                messageText.textContent = text;
+                messageBox.style.display = 'flex';
+            }
+
+            closeMessageButton.addEventListener('click', () => {
+                messageBox.style.display = 'none';
+            });
+
+            function shuffle(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            function createBoard(savedState = null) {
+                let gameElements;
+                if (savedState) {
+                    gameElements = savedState.gameElements;
+                    matchedPairs = savedState.matchedPairs;
+                } else {
+                    gameElements = [
+                        ...words.map(item => ({ value: item.word, id: item.id, isMatched: false })),
+                        ...words.map(item => ({ value: item.meaning, id: item.id, isMatched: false }))
+                    ];
+                    shuffle(gameElements);
+                    matchedPairs = 0;
+                }
+
+                gameGrid.innerHTML = '';
+                cards = [];
+                gameElements.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    card.classList.add('card', 'rounded-xl', 'transition', 'duration-300');
+                    card.dataset.id = item.id;
+                    card.dataset.value = item.value;
+                    card.dataset.index = index;
+
+                    const cardFront = document.createElement('div');
+                    cardFront.classList.add('card-front');
+
+                    const cardBack = document.createElement('div');
+                    cardBack.classList.add('card-back');
+                    cardBack.textContent = item.value;
+
+                    card.appendChild(cardFront);
+                    card.appendChild(cardBack);
+                    gameGrid.appendChild(card);
+                    cards.push(card);
+
+                    // If loading a saved game, flip matched cards
+                    if (item.isMatched) {
+                        card.classList.add('is-flipped', 'matched');
+                    }
+                });
+            }
+
+            function flipCard(event) {
+                const clickedCard = event.target.closest('.card');
+                if (!clickedCard || flippedCards.length >= 2 || clickedCard.classList.contains('is-flipped') || clickedCard.classList.contains('matched')) {
+                    return;
+                }
+
+                clickedCard.classList.add('is-flipped');
+                flippedCards.push(clickedCard);
+
+                if (flippedCards.length === 2) {
+                    setTimeout(checkForMatch, 1000);
+                }
+            }
+
+            function checkForMatch() {
+                const [firstCard, secondCard] = flippedCards;
+                const isMatch = firstCard.dataset.id === secondCard.dataset.id;
+
+                if (isMatch) {
+                    firstCard.classList.add('matched');
+                    secondCard.classList.add('matched');
+                    
+                    const firstIndex = parseInt(firstCard.dataset.index);
+                    const secondIndex = parseInt(secondCard.dataset.index);
+                    
+                    cards[firstIndex].isMatched = true;
+                    cards[secondIndex].isMatched = true;
+
+                    matchedPairs++;
+                    if (matchedPairs === words.length) {
+                        setTimeout(() => showMessage('恭喜您，完成遊戲！'), 500);
+                    }
+                } else {
+                    firstCard.classList.remove('is-flipped');
+                    secondCard.classList.remove('is-flipped');
+                }
+                flippedCards = [];
+            }
+            
+            function saveGame() {
+                const gameElements = cards.map(card => ({
+                    id: parseInt(card.dataset.id),
+                    value: card.dataset.value,
+                    isMatched: card.classList.contains('matched')
+                }));
+                const gameState = { gameElements: gameElements, matchedPairs: matchedPairs };
+                localStorage.setItem('wardGame', JSON.stringify(gameState));
+                showMessage('遊戲已保存！');
+            }
+
+            function loadGame() {
+                const savedGame = localStorage.getItem('wardGame');
+                if (savedGame) {
+                    const savedState = JSON.parse(savedGame);
+                    createBoard(savedState);
+                    showMessage('遊戲已載入！');
+                } else {
+                    showMessage('沒有找到已保存的遊戲。');
+                }
+            }
+
+            function initGame() {
+                matchedPairs = 0;
+                flippedCards = [];
+                createBoard();
+            }
+            
+            gameGrid.addEventListener('click', flipCard);
+            resetButton.addEventListener('click', initGame);
+            saveButton.addEventListener('click', saveGame);
+            loadButton.addEventListener('click', loadGame);
+
+            initGame();
+        });
+    </script>
+</body>
+</html>
